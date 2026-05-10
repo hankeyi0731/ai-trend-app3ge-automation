@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}短信营销 - 推广自动化{% endblock %}
+{% block content %}
+<div class="topbar"><h1>📩 短信/用户运营自动化</h1></div>
+<div class="content">
+  <div class="grid-2">
+    <!-- 添加联系人 -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">👤 添加用户联系人</div>
+      <div class="form-group"><label>手机号</label><input class="form-control" id="cPhone" placeholder="13800138000"></div>
+      <div class="form-group"><label>姓名（可选）</label><input class="form-control" id="cName" placeholder="用户姓名"></div>
+      <div class="form-group">
+        <label>关联产品</label>
+        <select class="form-control" id="cProduct">
+          <option value="">全部</option>
+          {% for pid, p in products.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>标签</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <label style="cursor:pointer"><input type="checkbox" value="new" style="accent-color:var(--accent)"> 新用户</label>
+          <label style="cursor:pointer"><input type="checkbox" value="inactive" style="accent-color:var(--accent)"> 流失用户</label>
+          <label style="cursor:pointer"><input type="checkbox" value="paid" style="accent-color:var(--accent)"> 付费用户</label>
+          <label style="cursor:pointer"><input type="checkbox" value="vip" style="accent-color:var(--accent)"> VIP</label>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnAddContact">添加联系人</button>
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="card-title">联系人列表</div>
+          <span class="badge badge-blue" id="contactTotal">0人</span>
+        </div>
+        <div id="contactList" style="max-height:200px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- 创建营销活动 -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">📢 创建短信营销活动</div>
+      <div class="form-group"><label>活动名称</label><input class="form-control" id="camName" placeholder="例如：5月高考季召回活动"></div>
+      <div class="form-group">
+        <label>目标产品</label>
+        <select class="form-control" id="camProduct">
+          {% for pid, p in products.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>短信模板</label>
+        <textarea class="form-control" id="camMsg" placeholder="短信内容，用{name}代表用户姓名" rows="3"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          {% for pid, tmpl in recall_templates.items() %}
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('camMsg').value='{{ tmpl }}'">{{ pid|replace('jielingqi','解铃契')|replace('maoshangyouqian','猫上有钱')|replace('qingyuhongmao','轻于鸿毛') }}模板</button>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>目标用户标签</label>
+        <select class="form-control" id="camTag">
+          <option value="">全部用户</option>
+          <option value="new">新用户</option>
+          <option value="inactive">流失用户（召回）</option>
+          <option value="paid">付费用户</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btnCreateCam">创建活动</button>
+    </div>
+  </div>
+
+  <!-- 活动列表 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 营销活动列表</div>
+      <button class="btn btn-secondary btn-sm" onclick="loadCampaigns()">🔄 刷新</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>活动名称</th><th>产品</th><th>状态</th><th>发送/成功</th><th>操作</th></tr></thead>
+        <tbody id="camTbody"><tr><td colspan="6" style="text-align:center;color:var(--muted)">暂无活动</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('btnAddContact').addEventListener('click', async () => {
+  const tags = Array.from(document.querySelectorAll('input[type=checkbox]:checked')).map(e=>e.value);
+  const r = await api('/api/crm/contacts','POST',{
+    phone: document.getElementById('cPhone').value,
+    name: document.getElementById('cName').value,
+    product_interest: document.getElementById('cProduct').value,
+    tags,
+  });
+  if (r.success) { toast('联系人已添加 ✓','success'); loadContacts(); }
+  else toast('失败: '+r.error,'error');
+});
+
+async function loadContacts() {
+  const r = await api('/api/crm/contacts');
+  if (!r.success) return;
+  const list = r.data || [];
+  document.getElementById('contactTotal').textContent = list.length + '人';
+  document.getElementById('contactList').innerHTML = list.length ? list.map(c=>`
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+      <span>${c.phone} ${c.name?'('+c.name+')':''}</span>
+      <div style="display:flex;gap:4px">${(c.tags||[]).map(t=>`<span class="badge badge-blue">${t}</span>`).join('')}</div>
+    </div>`).join('') : '<div style="color:var(--muted);font-size:12px">暂无联系人</div>';
+}
+
+document.getElementById('btnCreateCam').addEventListener('click', async () => {
+  const r = await api('/api/crm/campaigns','POST',{
+    name: document.getElementById('camName').value,
+    product_id: document.getElementById('camProduct').value,
+    message_template: document.getElementById('camMsg').value,
+    target_tag: document.getElementById('camTag').value,
+  });
+  if (r.success) { toast('活动已创建 ✓','success'); loadCampaigns(); }
+  else toast('失败: '+r.error,'error');
+});
+
+async function loadCampaigns() {
+  const r = await api('/api/crm/campaigns');
+  if (!r.success) return;
+  const list = r.data || [];
+  const smap = {pending:'<span class="badge badge-orange">待发送</span>',sending:'<span class="badge badge-blue">发送中</span>',completed:'<span class="badge badge-green">已完成</span>'};
+  document.getElementById('camTbody').innerHTML = list.length ? list.map(c=>`
+    <tr>
+      <td>${c.id}</td>
+      <td>${c.name}</td>
+      <td>${setProductBadge(c.product_id)}</td>
+      <td>${smap[c.status]||c.status}</td>
+      <td>${c.sent_count||0} / ${c.success_count||0}</td>
+      <td>${c.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="sendCam(${c.id})">📤 发送</button>`:''}</td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">暂无活动</td></tr>';
+}
+
+async function sendCam(id) {
+  if (!confirm('确认发送该营销短信？')) return;
+  const r = await api('/api/crm/campaigns/'+id+'/send','POST');
+  if (r.success) { toast(`发送完成：${r.sent}条，成功${r.success_count}条 ✓`,'success'); loadCampaigns(); }
+  else toast('发送失败: '+r.error,'error');
+}
+
+loadContacts();
+loadCampaigns();
+</script>
+{% endblock %}

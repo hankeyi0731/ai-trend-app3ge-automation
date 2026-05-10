@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}ASO优化 - 推广自动化{% endblock %}
+{% block content %}
+<div class="topbar"><h1>📱 App Store 关键词优化监控</h1><button class="btn btn-primary btn-sm" id="btnMonitor">🔍 开始全量监控</button></div>
+<div class="content">
+  <!-- 关键词库 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">📋 当前关键词库</div>
+    <div class="grid-3">
+      {% for pid, kws in aso_keywords.items() %}
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px">
+        <div style="font-weight:600;margin-bottom:10px;font-size:13px">
+          {% if pid=='jielingqi' %}💗 解铃契{% elif pid=='maoshangyouqian' %}🐱 猫上有钱{% else %}🕊️ 轻于鸿毛{% endif %}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          {% for kw in kws %}<span class="badge badge-blue">{{ kw }}</span>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 关键词搜索测试 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">🔍 关键词搜索测试</div>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <input class="form-control" id="searchKw" placeholder="输入关键词搜索App Store..." style="flex:1">
+      <button class="btn btn-primary" id="btnSearch">搜索</button>
+    </div>
+    <div id="searchResult"></div>
+  </div>
+
+  <!-- 监控报告 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">📊 排名监控报告</div>
+    <div id="monitorResult" style="color:var(--muted);font-size:13px">点击「开始全量监控」获取排名数据</div>
+  </div>
+
+  <!-- 关键词建议 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">💡 新关键词建议</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      {% for pid, p in products.items() %}
+      <button class="btn btn-secondary btn-sm" onclick="getSuggestions('{{ pid }}','{{ p.name }}')">{{ p.name }}</button>
+      {% endfor %}
+    </div>
+    <div id="suggestResult"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('btnSearch').addEventListener('click', async () => {
+  const kw = document.getElementById('searchKw').value.trim();
+  if (!kw) return;
+  const btn = document.getElementById('btnSearch');
+  btn.innerHTML = '<span class="loading"></span>'; btn.disabled = true;
+  const r = await api('/api/aso/search','POST',{keyword:kw});
+  btn.innerHTML = '搜索'; btn.disabled = false;
+  if (!r.success) { toast('搜索失败: '+r.error,'error'); return; }
+  document.getElementById('searchResult').innerHTML = r.data.length ? `
+    <div class="table-wrap"><table>
+      <thead><tr><th>排名</th><th>App名称</th><th>开发者</th><th>评分</th><th>评分数</th><th>价格</th></tr></thead>
+      <tbody>${r.data.map(a=>`<tr>
+        <td><strong>#${a.rank}</strong></td>
+        <td style="display:flex;align-items:center;gap:8px">
+          ${a.icon_url?`<img src="${a.icon_url}" style="width:30px;height:30px;border-radius:6px">`:''}
+          ${a.name}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">${a.developer}</td>
+        <td>${a.rating?'⭐'+a.rating.toFixed(1):'-'}</td>
+        <td style="font-size:12px">${a.rating_count?a.rating_count.toLocaleString():'-'}</td>
+        <td>${a.price===0?'<span class="badge badge-green">免费</span>':`¥${a.price}`}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<div style="color:var(--muted)">无结果</div>';
+});
+
+document.getElementById('btnMonitor').addEventListener('click', async () => {
+  const btn = document.getElementById('btnMonitor');
+  btn.innerHTML = '<span class="loading"></span> 监控中...'; btn.disabled = true;
+  document.getElementById('monitorResult').innerHTML = '<div class="loading"></div> 正在查询各关键词排名（可能需要1-2分钟）...';
+  const r = await api('/api/aso/monitor');
+  btn.innerHTML = '🔍 开始全量监控'; btn.disabled = false;
+  if (!r.success) { toast('监控失败: '+r.error,'error'); return; }
+  const d = r.data;
+  const names = {jielingqi:'💗 解铃契',maoshangyouqian:'🐱 猫上有钱',qingyuhongmao:'🕊️ 轻于鸿毛'};
+  document.getElementById('monitorResult').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">监控时间：${d.checked_at}</div>
+    ${Object.entries(d.products||{}).map(([pid, data])=>`
+      <div style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:8px">${names[pid]||pid}</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>关键词</th><th>我的排名</th><th>前3竞品</th></tr></thead>
+          <tbody>${(data.keywords||[]).map(k=>`<tr>
+            <td>${k.keyword}</td>
+            <td>${k.own_rank>0?`<span class="badge badge-green">#${k.own_rank}</span>`:'<span class="badge badge-red">未上榜（前10）</span>'}</td>
+            <td style="font-size:12px;color:var(--muted)">${k.top3_competitors.join('、')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`).join('')}`;
+});
+
+async function getSuggestions(pid, name) {
+  const r = await api('/api/aso/suggestions/'+pid);
+  if (!r.success) return;
+  document.getElementById('suggestResult').innerHTML = `
+    <div style="font-weight:600;margin-bottom:8px;font-size:13px">${name} 建议新关键词：</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${(r.data||[]).map(k=>`<span class="badge badge-orange" style="cursor:pointer" onclick="document.getElementById('searchKw').value='${k}'">${k}</span>`).join('')}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">点击标签可快速搜索该关键词</div>`;
+}
+</script>
+{% endblock %}

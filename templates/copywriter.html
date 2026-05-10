@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}AI文案生成 - 推广自动化{% endblock %}
+{% block content %}
+<div class="topbar"><h1>✍️ AI文案批量生成</h1></div>
+<div class="content">
+  <div class="grid-2">
+    <!-- 左侧：配置 -->
+    <div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px">⚙️ 生成配置</div>
+        <div class="form-group">
+          <label>热点关键词 / 主题</label>
+          <input class="form-control" id="kw" placeholder="例如：高考倒计时、撸猫解压、数字遗产...">
+        </div>
+        <div class="form-group">
+          <label>目标产品</label>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            {% for pid, p in products.items() %}
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:8px;transition:all .15s" class="product-opt" data-pid="{{ pid }}">
+              <input type="radio" name="product" value="{{ pid }}" {% if loop.first %}checked{% endif %} style="accent-color:var(--accent)">
+              <div>
+                <div style="font-weight:600;font-size:13px">{{ p.name }}</div>
+                <div style="font-size:11px;color:var(--muted)">{{ p.slogan }}</div>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>发布平台（多选）</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            {% for pid, p in platforms.items() %}
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px" class="platform-opt" data-pid="{{ pid }}">
+              <input type="checkbox" name="platform" value="{{ pid }}" checked style="accent-color:var(--accent)"> {{ p.name }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btnGen" style="width:100%;margin-top:4px">
+          ⚡ 生成全平台文案
+        </button>
+      </div>
+      <!-- 历史记录 -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📋 本次生成记录</div>
+        <div id="history" style="font-size:12px;color:var(--muted)">暂无记录</div>
+      </div>
+    </div>
+    <!-- 右侧：结果 -->
+    <div>
+      <div class="card" style="min-height:400px">
+        <div class="card-header">
+          <div class="card-title">📄 生成结果</div>
+          <button class="btn btn-secondary btn-sm" id="btnCopyAll">📋 全部复制</button>
+        </div>
+        <div id="results" style="color:var(--muted);font-size:13px;padding:20px;text-align:center">
+          配置好参数后点击「生成」按钮
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const historyItems = [];
+
+document.getElementById('btnGen').addEventListener('click', async () => {
+  const kw = document.getElementById('kw').value.trim();
+  if (!kw) { toast('请输入关键词', 'error'); return; }
+  const productId = document.querySelector('input[name="product"]:checked')?.value;
+  const platforms = Array.from(document.querySelectorAll('input[name="platform"]:checked')).map(e => e.value);
+  if (!platforms.length) { toast('请至少选择一个平台', 'error'); return; }
+  const btn = document.getElementById('btnGen');
+  btn.innerHTML = '<span class="loading"></span> 生成中...';
+  btn.disabled = true;
+  document.getElementById('results').innerHTML = '<div style="text-align:center;padding:40px"><div class="loading"></div><div style="margin-top:12px;color:var(--muted)">正在调用通义千问API，请稍候（约15-60秒）...</div></div>';
+  try {
+    const r = await api('/api/generate', 'POST', {keyword: kw, product_id: productId, platforms});
+    if (!r.success) { toast('生成失败: ' + r.error, 'error'); document.getElementById('results').innerHTML = `<div style="color:var(--red);padding:20px">${r.error}</div>`; }
+    else {
+      historyItems.unshift({kw, product: r.product_name, time: new Date().toLocaleTimeString()});
+      renderHistory();
+      renderResults(r);
+      toast('文案生成完成 ✓', 'success');
+    }
+  } catch(e) { toast('请求异常: ' + e, 'error'); }
+  btn.innerHTML = '⚡ 生成全平台文案';
+  btn.disabled = false;
+});
+
+function renderResults(r) {
+  const copies = r.copies || {};
+  const allText = Object.entries(copies).map(([pid, c]) => `【${c.platform_name}】\n${c.content}`).join('\n\n---\n\n');
+  document.getElementById('btnCopyAll').onclick = () => {
+    navigator.clipboard.writeText(allText).then(() => toast('已复制全部文案 ✓', 'success'));
+  };
+  document.getElementById('results').innerHTML = Object.entries(copies).map(([pid, c]) => `
+    <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden">
+      <div style="background:var(--card2);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">${setPlatformBadge(pid)}<strong>${c.platform_name}</strong></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('c${pid}').textContent).then(()=>toast('已复制','success'))">📋</button>
+            <button class="btn btn-success btn-sm" onclick="scheduleFromCopy('${r.keyword||''}','${r.product_id||''}','${pid}')">📅 排程</button>
+            <button class="btn btn-primary btn-sm" onclick="publishFromCopy('${r.keyword||''}','${r.product_id||''}','${pid}')">🚀 发布</button>
+          </div>
+        </div>
+      <div id="c${pid}" style="padding:14px;font-size:13px;line-height:1.85;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${c.content}</div>
+    </div>`).join('');
+}
+
+function renderHistory() {
+  document.getElementById('history').innerHTML = historyItems.slice(0,5).map(h =>
+    `<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><span>${h.kw} → ${h.product}</span><span style="color:var(--muted)">${h.time}</span></div>`
+  ).join('') || '<span style="color:var(--muted)">暂无记录</span>';
+}
+
+async function scheduleFromCopy(keyword, productId, platformId) {
+  const content = document.getElementById('c'+platformId)?.textContent || '';
+  const time = new Date(Date.now()+3600000).toISOString().slice(0,16).replace('T',' ')+':00';
+  const r = await api('/api/posts','POST',{keyword, product_id:productId, platform_id:platformId, content, scheduled_time:time});
+  if (r.success) toast('已加入发布队列 ✓','success');
+  else toast('排程失败: '+r.error,'error');
+}
+
+async function publishFromCopy(keyword, productId, platformId) {
+  const content = document.getElementById('c'+platformId)?.textContent || '';
+  if (!content) { toast('文案内容为空', 'error'); return; }
+  toast('正在发布...', 'info');
+  try {
+    const r = await api('/api/publish', 'POST', {platform_id: platformId, content: content, title: keyword});
+    if (r.success && r.data.success) {
+      toast('发布成功 ✓', 'success');
+    } else {
+      const error = r.data?.error || '发布失败';
+      toast('发布失败: ' + error, 'error');
+      // 如果是登录问题，提示用户
+      if (error.includes('未登录')) {
+        toast('请先手动登录该平台', 'warning');
+      }
+    }
+  } catch(e) {
+    toast('发布异常: ' + e, 'error');
+  }
+}
+
+document.querySelectorAll('.product-opt').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.product-opt').forEach(e => e.style.borderColor='var(--border)');
+    el.style.borderColor = 'var(--accent)';
+  });
+});
+document.querySelector('.product-opt').style.borderColor = 'var(--accent)';
+</script>
+{% endblock %}

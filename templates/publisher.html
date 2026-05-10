@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}自动化发布 - 推广自动化{% endblock %}
+{% block content %}
+<div class="topbar">
+  <h1>📤 跨平台自动化发布</h1>
+  <button class="btn btn-primary btn-sm" onclick="loadPosts()">🔄 刷新队列</button>
+</div>
+<div class="content">
+  <!-- 平台登录状态 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">🔐 平台账号状态</div>
+    <div class="grid-4" id="loginStatus">
+      <div style="text-align:center;color:var(--muted)"><div class="loading"></div></div>
+    </div>
+    <div style="margin-top:12px;padding:10px;background:rgba(255,145,0,.08);border:1px solid rgba(255,145,0,.3);border-radius:8px;font-size:12px;color:var(--orange)">
+      ⚠️ 首次使用：需要先手动在浏览器登录各平台账号，系统会自动保存 Cookie 供后续使用
+    </div>
+  </div>
+
+  <!-- 手动添加发布任务 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">➕ 添加发布任务</div>
+    <div class="grid-2">
+      <div>
+        <div class="form-group">
+          <label>热点关键词</label>
+          <input class="form-control" id="postKw" placeholder="关联热点词">
+        </div>
+        <div class="form-group">
+          <label>产品</label>
+          <select class="form-control" id="postProduct">
+            {% for pid, p in products.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>平台</label>
+          <select class="form-control" id="postPlatform">
+            {% for pid, p in platforms.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>计划发布时间</label>
+          <input class="form-control" type="datetime-local" id="postTime">
+        </div>
+      </div>
+      <div class="form-group" style="display:flex;flex-direction:column">
+        <label>文案内容</label>
+        <textarea class="form-control" id="postContent" style="flex:1;min-height:180px" placeholder="粘贴生成好的文案内容..."></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btnAddPost">📅 加入发布队列</button>
+  </div>
+
+  <!-- 发布队列 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 发布队列</div>
+      <div style="display:flex;gap:8px">
+        <span class="badge badge-orange" id="pendingCnt">待发布 0</span>
+        <span class="badge badge-green" id="publishedCnt">已发布 0</span>
+        <span class="badge badge-red" id="failedCnt">失败 0</span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>关键词</th><th>产品</th><th>平台</th><th>计划时间</th><th>状态</th><th>内容预览</th><th>操作</th></tr></thead>
+        <tbody id="postsTbody"><tr><td colspan="8" style="text-align:center;color:var(--muted)">暂无任务</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// 设置默认时间为1小时后
+const d = new Date(Date.now()+3600000);
+document.getElementById('postTime').value = d.toISOString().slice(0,16);
+
+async function loadLoginStatus() {
+  const r = await api('/api/login-status');
+  if (!r.success) return;
+  const names = {xiaohongshu:'小红书',weibo:'微博',zhihu:'知乎',bilibili:'B站',douyin:'抖音'};
+  document.getElementById('loginStatus').innerHTML = Object.entries(r.data).map(([pid, ok]) => `
+    <div style="text-align:center;padding:12px;border:1px solid var(--border);border-radius:8px">
+      <div style="font-size:20px">${ok ? '✅' : '⚠️'}</div>
+      <div style="font-size:12px;margin-top:4px">${names[pid]||pid}</div>
+      <div style="font-size:11px;color:${ok?'var(--green)':'var(--orange)'}">${ok?'已登录':'未登录'}</div>
+    </div>`).join('');
+}
+
+async function loadPosts() {
+  const r = await api('/api/posts');
+  if (!r.success) return;
+  const posts = r.data || [];
+  let pending=0, published=0, failed=0;
+  posts.forEach(p => { if(p.status==='pending'||p.status==='publishing') pending++; else if(p.status==='published') published++; else if(p.status==='failed') failed++; });
+  document.getElementById('pendingCnt').textContent = '待发布 '+pending;
+  document.getElementById('publishedCnt').textContent = '已发布 '+published;
+  document.getElementById('failedCnt').textContent = '失败 '+failed;
+  const statusMap = {pending:'<span class="badge badge-orange">待发布</span>', publishing:'<span class="badge badge-blue">发布中</span>', published:'<span class="badge badge-green">已发布</span>', failed:'<span class="badge badge-red">失败</span>'};
+  document.getElementById('postsTbody').innerHTML = posts.length ? posts.map(p => `
+    <tr>
+      <td>${p.id}</td>
+      <td>${p.keyword||'-'}</td>
+      <td>${setProductBadge(p.product_id)}</td>
+      <td>${setPlatformBadge(p.platform_id)}</td>
+      <td style="font-size:12px">${p.scheduled_time}</td>
+      <td>${statusMap[p.status]||p.status}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${p.content?.slice(0,60)||'-'}...</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delPost(${p.id})">🗑</button></td>
+    </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted)">暂无任务</td></tr>';
+}
+
+document.getElementById('btnAddPost').addEventListener('click', async () => {
+  const body = {
+    keyword: document.getElementById('postKw').value,
+    product_id: document.getElementById('postProduct').value,
+    platform_id: document.getElementById('postPlatform').value,
+    content: document.getElementById('postContent').value,
+    scheduled_time: document.getElementById('postTime').value.replace('T',' ')+':00',
+  };
+  if (!body.content) { toast('请输入文案内容','error'); return; }
+  const r = await api('/api/posts','POST',body);
+  if (r.success) { toast('已加入队列 ✓','success'); loadPosts(); document.getElementById('postContent').value=''; }
+  else toast('添加失败: '+r.error,'error');
+});
+
+async function delPost(id) {
+  if (!confirm('确认删除该任务？')) return;
+  await api('/api/posts/'+id,'DELETE');
+  loadPosts();
+}
+
+loadLoginStatus();
+loadPosts();
+setInterval(loadPosts, 30000);
+</script>
+{% endblock %}

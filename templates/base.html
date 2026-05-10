@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}推广自动化系统{% endblock %}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0f1117;--card:#1a1d27;--card2:#22263a;--border:#2d3250;
+      --text:#e8eaf6;--muted:#7986cb;--accent:#7c4dff;--accent2:#00e5ff;
+      --green:#00e676;--orange:#ff9100;--red:#ff5252;--pink:#ff4081;
+    }
+    body{background:var(--bg);color:var(--text);font-family:'PingFang SC','Microsoft YaHei',sans-serif;display:flex;min-height:100vh}
+    /* Sidebar */
+    .sidebar{width:220px;min-height:100vh;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;flex-shrink:0}
+    .sidebar-logo{padding:20px 16px 16px;border-bottom:1px solid var(--border)}
+    .sidebar-logo h2{font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .sidebar-logo p{font-size:11px;color:var(--muted);margin-top:4px}
+    .sidebar nav{flex:1;padding:12px 0}
+    .nav-section{font-size:10px;color:var(--muted);padding:12px 16px 4px;text-transform:uppercase;letter-spacing:.08em}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;font-size:13px;color:var(--muted);text-decoration:none;transition:all .15s;cursor:pointer;border-left:3px solid transparent}
+    .nav-item:hover{color:var(--text);background:var(--card2)}
+    .nav-item.active{color:var(--accent2);background:rgba(0,229,255,.07);border-left-color:var(--accent2)}
+    .nav-item .icon{font-size:16px;width:20px;text-align:center}
+    /* Main */
+    .main{flex:1;display:flex;flex-direction:column;overflow-x:hidden}
+    .topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+    .topbar h1{font-size:16px;font-weight:600}
+    .topbar-actions{display:flex;gap:8px}
+    .content{flex:1;padding:24px;overflow-y:auto}
+    /* Cards */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .card-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),#5c35cc);color:#fff}
+    .btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+    .btn-secondary{background:var(--card2);border:1px solid var(--border);color:var(--text)}
+    .btn-secondary:hover{border-color:var(--accent)}
+    .btn-success{background:rgba(0,230,118,.15);border:1px solid var(--green);color:var(--green)}
+    .btn-danger{background:rgba(255,82,82,.12);border:1px solid var(--red);color:var(--red)}
+    .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+    /* Badges */
+    .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+    .badge-blue{background:rgba(0,229,255,.15);color:var(--accent2)}
+    .badge-green{background:rgba(0,230,118,.15);color:var(--green)}
+    .badge-orange{background:rgba(255,145,0,.15);color:var(--orange)}
+    .badge-pink{background:rgba(255,64,129,.15);color:var(--pink)}
+    .badge-red{background:rgba(255,82,82,.15);color:var(--red)}
+    /* Form */
+    .form-group{margin-bottom:14px}
+    .form-group label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .form-control{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;transition:border-color .15s}
+    .form-control:focus{border-color:var(--accent)}
+    select.form-control option{background:var(--card)}
+    textarea.form-control{resize:vertical;min-height:90px}
+    /* Grid */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+    .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    /* Table */
+    .table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{background:var(--card2);padding:10px 14px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+    td{padding:11px 14px;border-bottom:1px solid rgba(45,50,80,.5);vertical-align:middle}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    /* Stat cards */
+    .stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+    .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent-line,var(--accent))}
+    .stat-value{font-size:28px;font-weight:700;margin:4px 0}
+    .stat-label{font-size:12px;color:var(--muted)}
+    .stat-icon{font-size:24px;position:absolute;right:18px;top:18px;opacity:.3}
+    /* Toast */
+    #toast{position:fixed;bottom:24px;right:24px;background:#333;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;display:none;z-index:9999;border-left:4px solid var(--accent)}
+    /* Loading */
+    .loading{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Platform colors */
+    .p-xhs{color:#ff2442}.p-dy{color:#fe2c55}.p-wb{color:#e6162d}.p-zh{color:#0084ff}.p-wx{color:#07c160}.p-bili{color:#00a1d6}
+    /* Scrollbar */
+    ::-webkit-scrollbar{width:6px;height:6px}
+    ::-webkit-scrollbar-track{background:var(--bg)}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+    @media(max-width:768px){.sidebar{display:none}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h2>🚀 推广自动化</h2>
+    <p>三款App全域增长引擎</p>
+  </div>
+  <nav>
+    <div class="nav-section">核心功能</div>
+    <a href="/" class="nav-item {% if request.path=='/' %}active{% endif %}">
+      <span class="icon">🔥</span>热点采集
+    </a>
+    <a href="/copywriter" class="nav-item {% if request.path=='/copywriter' %}active{% endif %}">
+      <span class="icon">✍️</span>AI文案生成
+    </a>
+    <a href="/publisher" class="nav-item {% if request.path=='/publisher' %}active{% endif %}">
+      <span class="icon">📤</span>自动化发布
+    </a>
+    <div class="nav-section">素材 & 优化</div>
+    <a href="/assets" class="nav-item {% if request.path=='/assets' %}active{% endif %}">
+      <span class="icon">🎨</span>素材生成
+    </a>
+    <a href="/aso" class="nav-item {% if request.path=='/aso' %}active{% endif %}">
+      <span class="icon">📱</span>ASO优化
+    </a>
+    <div class="nav-section">用户运营</div>
+    <a href="/crm" class="nav-item {% if request.path=='/crm' %}active{% endif %}">
+      <span class="icon">📩</span>短信营销
+    </a>
+    <div class="nav-section">数据</div>
+    <a href="/dashboard" class="nav-item {% if request.path=='/dashboard' %}active{% endif %}">
+      <span class="icon">📊</span>数据看板
+    </a>
+  </nav>
+  <div style="padding:12px 16px;border-top:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted)">三款App</div>
+    <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:12px">💗 解铃契</span>
+      <span style="font-size:12px">🐱 猫上有钱</span>
+      <span style="font-size:12px">🕊️ 轻于鸿毛</span>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">AI模型</div>
+      <div id="sidebarModel" style="font-size:11px;color:var(--green)">加载中...</div>
+    </div>
+  </div>
+</aside>
+<main class="main">
+  {% block content %}{% endblock %}
+</main>
+<div id="toast"></div>
+<script>
+function toast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.borderLeftColor=type==='error'?'#ff5252':type==='success'?'#00e676':'#7c4dff';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+}
+async function api(url,method='GET',body=null){
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(body) opts.body=JSON.stringify(body);
+  const r=await fetch(url,opts);
+  return r.json();
+}
+function setPlatformBadge(pid){
+  const map={xiaohongshu:'xhs',douyin:'dy',weibo:'wb',zhihu:'zh',wechat_mp:'wx',bilibili:'bili'};
+  const names={xiaohongshu:'小红书',douyin:'抖音',weibo:'微博',zhihu:'知乎',wechat_mp:'公众号',bilibili:'B站'};
+  return `<span class="badge badge-blue p-${map[pid]||''}">${names[pid]||pid}</span>`;
+}
+function setProductBadge(pid){
+  const map={jielingqi:'💗 解铃契',maoshangyouqian:'🐱 猫上有钱',qingyuhongmao:'🕊️ 轻于鸿毛'};
+  const colors={jielingqi:'pink',maoshangyouqian:'orange',qingyuhongmao:'blue'};
+  return `<span class="badge badge-${colors[pid]||'blue'}">${map[pid]||pid}</span>`;
+}
+function scoreBar(score){
+  const color=score>=50?'#00e676':score>=20?'#ff9100':'#7986cb';
+  return `<div style="display:flex;align-items:center;gap:8px"><div style="width:80px;height:6px;background:#2d3250;border-radius:3px;overflow:hidden"><div style="width:${score}%;height:100%;background:${color};border-radius:3px"></div></div><span style="font-size:12px;color:${color}">${score.toFixed(0)}</span></div>`;
+}
+
+async function refreshModelStatus() {
+  try {
+    const r = await api('/api/model-status');
+    if (!r.success) return;
+    const d = r.data;
+    const el = document.getElementById('sidebarModel');
+    if (!el) return;
+    if (d.is_fallback) {
+      el.style.color = 'var(--orange)';
+      el.innerHTML = `⚠️ ${d.fallback_model}<br><span style="font-size:10px;color:var(--muted)">主模型额度已用完</span>`;
+    } else {
+      el.style.color = 'var(--green)';
+      el.innerHTML = `✅ ${d.current_model}`;
+    }
+  } catch(e) {}
+}
+refreshModelStatus();
+setInterval(refreshModelStatus, 30000);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

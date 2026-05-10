@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}素材生成 - 推广自动化{% endblock %}
+{% block content %}
+<div class="topbar"><h1>🎨 推广素材生成</h1></div>
+<div class="content">
+  <div class="grid-2">
+    <!-- 二维码生成 -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">📱 App下载二维码</div>
+      {% for pid, p in products.items() %}
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <strong style="font-size:13px">{{ p.name }}</strong>
+          <span class="badge badge-blue">{{ p.slogan }}</span>
+        </div>
+        <input class="form-control" style="margin-bottom:8px;font-size:12px" placeholder="App Store链接..." id="url_{{ pid }}">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <button class="btn btn-secondary btn-sm" onclick="genQR('{{ pid }}')">生成二维码</button>
+          <div id="qr_{{ pid }}"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- 视频脚本生成 -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">🎬 抖音短视频脚本</div>
+      <div class="form-group">
+        <label>结合热点关键词</label>
+        <input class="form-control" id="scriptKw" placeholder="例如：高考焦虑、撸猫解压...">
+      </div>
+      <div class="form-group">
+        <label>目标产品</label>
+        <select class="form-control" id="scriptProduct">
+          {% for pid, p in products.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btnScript">🎬 生成60秒视频脚本</button>
+      <div id="scriptResult" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <!-- 海报文字生成 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">🖼️ 推广海报文字排版</div>
+    <div class="grid-2">
+      <div>
+        <div class="form-group">
+          <label>产品</label>
+          <select class="form-control" id="posterProduct">
+            {% for pid, p in products.items() %}<option value="{{ pid }}">{{ p.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>主标题</label>
+          <input class="form-control" id="posterHeadline" placeholder="例如：孩子叛逆？让AI来帮你">
+        </div>
+        <div class="form-group">
+          <label>副标题</label>
+          <input class="form-control" id="posterSubtext" placeholder="例如：AI心理陪伴，免费体验">
+        </div>
+        <div class="form-group">
+          <label>蹭热点标签（可选）</label>
+          <input class="form-control" id="posterHotspot" placeholder="例如：#高考加油#">
+        </div>
+        <button class="btn btn-primary" id="btnPoster">生成海报预览</button>
+      </div>
+      <div id="posterPreview" style="border:1px solid var(--border);border-radius:10px;padding:24px;display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--muted);font-size:13px">海报预览区域</div>
+    </div>
+  </div>
+
+  <!-- ASO关键词建议 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">🔍 App Store 关键词建议</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      {% for pid, p in products.items() %}
+      <button class="btn btn-secondary" onclick="genASO('{{ pid }}','{{ p.name }}')">{{ p.name }} 关键词</button>
+      {% endfor %}
+    </div>
+    <div id="asoResult" style="margin-top:14px"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function genQR(pid) {
+  const url = document.getElementById('url_'+pid).value || 'https://qingguoguang.com';
+  const r = await api('/api/assets/qrcode','POST',{url});
+  if (r.success && r.qrcode_base64) {
+    document.getElementById('qr_'+pid).innerHTML = `<img src="data:image/png;base64,${r.qrcode_base64}" style="width:80px;height:80px;border-radius:6px">
+    <br><button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="downloadQR('${r.qrcode_base64}','${pid}')">⬇ 下载</button>`;
+  }
+}
+
+function downloadQR(b64, pid) {
+  const a = document.createElement('a');
+  a.href = 'data:image/png;base64,' + b64;
+  a.download = pid + '_qrcode.png';
+  a.click();
+}
+
+document.getElementById('btnScript').addEventListener('click', async () => {
+  const kw = document.getElementById('scriptKw').value.trim() || '热门话题';
+  const productId = document.getElementById('scriptProduct').value;
+  const btn = document.getElementById('btnScript');
+  btn.innerHTML = '<span class="loading"></span> 生成中...';
+  btn.disabled = true;
+  const r = await api('/api/assets/video-script','POST',{keyword:kw, product_id:productId});
+  btn.innerHTML = '🎬 生成60秒视频脚本'; btn.disabled=false;
+  if (!r.success) { toast('生成失败: '+r.error,'error'); return; }
+  const s = r.data;
+  document.getElementById('scriptResult').innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="background:var(--card2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <strong>${s.title}</strong>
+        <span class="badge badge-blue">${s.total_duration}</span>
+      </div>
+      <div style="padding:14px">
+        ${s.scenes.map(sc=>`
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+            <div style="text-align:center;padding:6px;background:var(--card2);border-radius:6px">
+              <div style="font-size:11px;color:var(--accent2);font-weight:700">${sc.time}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${sc.label}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted)">📹 画面：${sc.visual}</div>
+              <div style="font-size:12px;margin-top:4px">🎤 口播：${sc.voiceover}</div>
+              <div style="font-size:12px;color:var(--accent2);margin-top:4px">📝 字幕：${sc.text_overlay}</div>
+            </div>
+          </div>`).join('')}
+        <div style="font-size:12px;color:var(--muted)">🎵 BGM建议：${s.bgm_suggestion}</div>
+        <div style="margin-top:8px;font-size:12px;color:var(--muted)">${s.shooting_tips.map(t=>'• '+t).join(' &nbsp;')}</div>
+      </div>
+    </div>`;
+});
+
+document.getElementById('btnPoster').addEventListener('click', async () => {
+  const r = await api('/api/assets/poster','POST',{
+    product_id: document.getElementById('posterProduct').value,
+    headline: document.getElementById('posterHeadline').value,
+    subtext: document.getElementById('posterSubtext').value,
+    hotspot: document.getElementById('posterHotspot').value,
+  });
+  if (!r.success) return;
+  const d = r.data;
+  document.getElementById('posterPreview').innerHTML = `
+    <div style="width:100%;max-width:300px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,${d.color_primary},${d.color_secondary});padding:32px 24px;text-align:center;color:#fff;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+      ${d.hotspot_badge?`<span style="background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;font-size:12px">${d.hotspot_badge}</span>`:''}
+      <div style="font-size:22px;font-weight:700;line-height:1.3">${d.headline||'主标题'}</div>
+      <div style="font-size:14px;opacity:.9">${d.subtext||'副标题文字'}</div>
+      <div style="font-size:13px;font-weight:600;background:rgba(255,255,255,.25);padding:6px 16px;border-radius:20px">${d.product_name}</div>
+      <div style="font-size:11px;opacity:.7">生成于 ${d.generated_at}</div>
+    </div>`;
+});
+
+async function genASO(pid, name) {
+  const r = await api('/api/assets/aso-keywords','POST',{product_id:pid});
+  if (!r.success) { toast('失败: '+r.error,'error'); return; }
+  const d = r.data;
+  document.getElementById('asoResult').innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-weight:600;margin-bottom:12px">${name} - ASO关键词建议</div>
+      <div class="grid-2">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">核心关键词</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${d.core_keywords.map(k=>`<span class="badge badge-blue">${k}</span>`).join('')}</div>
+          <div style="font-size:12px;color:var(--muted);margin:10px 0 6px">长尾关键词</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${d.long_tail_keywords.map(k=>`<span class="badge badge-orange">${k}</span>`).join('')}</div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">建议App名称</div>
+          <div style="font-size:13px;padding:8px;background:var(--card2);border-radius:6px">${d.title_suggestion}</div>
+          <div style="font-size:12px;color:var(--muted);margin:10px 0 6px">关键词字段（填入App Store后台）</div>
+          <div style="font-size:12px;padding:8px;background:var(--card2);border-radius:6px;word-break:break-all">${d.keyword_field}</div>
+        </div>
+      </div>
+    </div>`;
+}
+</script>
+{% endblock %}
